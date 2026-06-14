@@ -5,7 +5,7 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Inject the AMD interceptor on pages.
  *
- * For this demo we load it globally; the JS itself only rewrites the
+ * Load it globally; the JS itself only rewrites the
  * core_enrol_get_potential_users AJAX call.
  *
  * @return string

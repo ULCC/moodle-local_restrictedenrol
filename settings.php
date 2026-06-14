@@ -21,14 +21,6 @@ if ($hassiteconfig) {
         PARAM_ALPHANUMEXT
     ));
 
-    $settings->add(new admin_setting_configtext(
-        'local_restrictedenrol/allowedvalue',
-        get_string('allowedvalue', 'local_restrictedenrol'),
-        get_string('allowedvalue_desc', 'local_restrictedenrol'),
-        'ABC',
-        PARAM_RAW_TRIMMED
-    ));
-
     $settings->add(new admin_setting_configcheckbox(
         'local_restrictedenrol/debuglog',
         get_string('debuglog', 'local_restrictedenrol'),

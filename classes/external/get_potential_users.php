@@ -65,7 +65,9 @@ class get_potential_users extends external_api {
         $restricted = self::user_is_restricted($context, $USER->id);
         $config = get_config('local_restrictedenrol');
         $profilefieldshortname = trim((string)($config->profilefieldshortname ?? 'collegecode'));
-        $allowedvalue = trim((string)($config->allowedvalue ?? 'ABC'));
+        $managerprofilevalue = $restricted && $profilefieldshortname !== ''
+            ? self::get_user_profile_field_value($USER->id, $profilefieldshortname)
+            : null;
 
         $limitfrom = max(0, $params['page']) * max(1, $params['perpage']);
         $limitnum = max(1, $params['perpage']);
@@ -81,6 +83,7 @@ class get_potential_users extends external_api {
             'u.confirmed = 1',
             'u.suspended = 0',
             'u.id <> :guestid',
+            'u.id <> :currentuserid',
             "NOT EXISTS (
                 SELECT 1
                   FROM {user_enrolments} ue
@@ -93,23 +96,29 @@ class get_potential_users extends external_api {
         $sqlparams = [
             'courseid' => $params['courseid'],
             'guestid' => $CFG->siteguest,
+            'currentuserid' => $USER->id,
         ];
 
         if ($restricted && $profilefieldshortname !== '') {
-            $sql .= "
-                JOIN {user_info_field} uif
-                  ON uif.shortname = :profilefieldshortname
-                JOIN {user_info_data} uid
-                  ON uid.userid = u.id
-                 AND uid.fieldid = uif.id
-            ";
-            $sqlparams['profilefieldshortname'] = $profilefieldshortname;
-            $sqlparams['allowedvalue'] = $allowedvalue;
-            $where[] = 'uid.data = :allowedvalue';
+            if ($managerprofilevalue === null || $managerprofilevalue === '') {
+                $where[] = '1 = 0';
+            } else {
+                $sql .= "
+                    JOIN {user_info_field} uif
+                      ON uif.shortname = :profilefieldshortname
+                    JOIN {user_info_data} uid
+                      ON uid.userid = u.id
+                     AND uid.fieldid = uif.id
+                ";
+                $sqlparams['profilefieldshortname'] = $profilefieldshortname;
+                $sqlparams['managerprofilevalue'] = $managerprofilevalue;
+                $where[] = 'uid.data = :managerprofilevalue';
+            }
         }
 
         if ($params['search'] !== '') {
-            $like = $params['searchanywhere'] ? "%{$params['search']}%" : "{$params['search']}%";
+            $search = $DB->sql_like_escape($params['search']);
+            $like = $params['searchanywhere'] ? "%{$search}%" : "{$search}%";
             $likesql = $DB->sql_like('u.firstname', ':search1', false, false)
                 . ' OR ' . $DB->sql_like('u.lastname', ':search2', false, false)
                 . ' OR ' . $DB->sql_like('u.email', ':search3', false, false)
@@ -190,5 +199,34 @@ class get_potential_users extends external_api {
         }
 
         return false;
+    }
+
+    /**
+     * Get a custom user profile field value for a user.
+     *
+     * @param int $userid
+     * @param string $fieldshortname
+     * @return string|null
+     */
+    protected static function get_user_profile_field_value(int $userid, string $fieldshortname): ?string {
+        global $DB;
+
+        $sql = "SELECT uid.data
+                  FROM {user_info_field} uif
+                  JOIN {user_info_data} uid
+                    ON uid.fieldid = uif.id
+                 WHERE uif.shortname = :fieldshortname
+                   AND uid.userid = :userid";
+
+        $value = $DB->get_field_sql($sql, [
+            'fieldshortname' => $fieldshortname,
+            'userid' => $userid,
+        ]);
+
+        if ($value === false) {
+            return null;
+        }
+
+        return trim((string)$value);
     }
 }

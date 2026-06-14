@@ -4,7 +4,8 @@ Restricted Enrol
 Purpose
 -------
 This plugin restricts the user search results shown in Moodle's "Enrol users"
-modal for selected course roles.
+modal for selected course roles. Restricted users only see enrolment candidates
+whose configured profile field value matches their own value.
 
 When Moodle requests potential enrolment users through:
 
@@ -19,13 +20,14 @@ Behaviour
 - Users with the configured role shortname in the course context, or inherited
   into the course context, get filtered enrolment search results.
 - Other users continue to receive the normal matching user results.
-- Filtering is based on a custom user profile field shortname and value.
+- Filtering is based on a configured custom user profile field shortname.
+- The logged-in manager is excluded from their own enrolment search results.
+- Search terms have SQL LIKE wildcards escaped before matching.
 
 Default settings:
 
   restricted role shortname = manager
   profile field shortname   = collegecode
-  allowed profile value     = ABC
 
 Install
 -------
@@ -45,17 +47,18 @@ Install
 
 Testing
 -------
-1. Create or identify users with different values in the configured custom
-   profile field, for example:
+1. Create or identify a manager and users with different values in the
+   configured custom profile field, for example:
 
+     manager collegecode = ABC
      collegecode = ABC
      collegecode = XYZ
 
 2. Open a course as a user with the configured restricted role, for example
    Manager.
 3. Open the "Enrol users" modal and search for users.
-4. Confirm that only users matching the configured allowed profile value are
-   shown.
+4. Confirm that only users matching the manager's own profile field value are
+   shown, and that the manager is not shown in their own results.
 
 Developer verification
 ----------------------
