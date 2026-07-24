@@ -4,8 +4,7 @@ Restricted Enrol
 Purpose
 -------
 This plugin restricts the user search results shown in Moodle's "Enrol users"
-modal for selected course roles. Restricted users only see enrolment candidates
-whose configured profile field value matches their own value.
+modal for selected course managers.
 
 When Moodle requests potential enrolment users through:
 
@@ -17,17 +16,25 @@ the plugin redirects that AJAX request to its own external function:
 
 Behaviour
 ---------
-- Users with the configured role shortname in the course context, or inherited
-  into the course context, get filtered enrolment search results.
-- Other users continue to receive the normal matching user results.
-- Filtering is based on a configured custom user profile field shortname.
-- The logged-in manager is excluded from their own enrolment search results.
+- Users with the configured manager role who are members of the configured
+  cohort have their enrolment search results restricted.
+- Restricted users only see enrolment candidates who are members of the same
+  configured cohort.
+- Users with the capability:
+
+      local/restrictedenrol:enrolanyone
+
+  are never restricted, regardless of their role or cohort membership.
+- Managers who are not members of the configured cohort are not restricted.
+- Users without the configured manager role are not affected by this plugin and
+  continue to use Moodle's normal enrolment permissions.
+- The logged-in user is excluded from their own enrolment search results.
 - Search terms have SQL LIKE wildcards escaped before matching.
 
-Default settings:
-
-  restricted role shortname = manager
-  profile field shortname   = collegecode
+Default settings
+----------------
+  manager role shortname = manager
+  cohort idnumber        = staff
 
 Install
 -------
@@ -45,20 +52,45 @@ Install
 
      Site administration > Plugins > Local plugins > Restricted enrol
 
+Configuration
+-------------
+The plugin provides the following settings:
+
+- Manager role shortname
+  The course role whose users may be subject to enrolment restrictions.
+
+- Cohort idnumber
+  The idnumber of the cohort whose members are subject to the restriction.
+  Restricted managers can only enrol users who are also members of this cohort.
+
+Capability
+----------
+The plugin defines the capability:
+
+  local/restrictedenrol:enrolanyone
+
+Users granted this capability bypass all restrictions and can search for and
+enrol any eligible user.
+
 Testing
 -------
-1. Create or identify a manager and users with different values in the
-   configured custom profile field, for example:
+1. Create a cohort (for example, "staff") and configure its idnumber in the
+   plugin settings.
 
-     manager collegecode = ABC
-     collegecode = ABC
-     collegecode = XYZ
+2. Add one or more managers to the cohort.
 
-2. Open a course as a user with the configured restricted role, for example
-   Manager.
-3. Open the "Enrol users" modal and search for users.
-4. Confirm that only users matching the manager's own profile field value are
-   shown, and that the manager is not shown in their own results.
+3. Add users both inside and outside the cohort.
+
+4. As a manager who is a member of the configured cohort and does not have the
+   `local/restrictedenrol:enrolanyone` capability, open the "Enrol users" modal.
+
+5. Verify that only users belonging to the configured cohort are returned.
+
+6. Grant the manager the `local/restrictedenrol:enrolanyone` capability and
+   verify that all eligible users are returned.
+
+7. Test with a manager who is not a member of the configured cohort and verify
+   that all eligible users are returned.
 
 Developer verification
 ----------------------

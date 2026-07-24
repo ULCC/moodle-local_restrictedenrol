@@ -62,12 +62,36 @@ class get_potential_users extends external_api {
         $course = $DB->get_record('course', ['id' => $params['courseid']], '*', MUST_EXIST);
         $enrol = $DB->get_record('enrol', ['id' => $params['enrolid'], 'courseid' => $params['courseid']], '*', MUST_EXIST);
 
-        $restricted = self::user_is_restricted($context, $USER->id);
         $config = get_config('local_restrictedenrol');
-        $profilefieldshortname = trim((string)($config->profilefieldshortname ?? 'collegecode'));
-        $managerprofilevalue = $restricted && $profilefieldshortname !== ''
-            ? self::get_user_profile_field_value($USER->id, $profilefieldshortname)
-            : null;
+        $cohortidnumber = trim((string)($config->cohortidnumber ?? 'staff'));
+        $roleshortname = trim((string)($config->managershortname ?? 'manager'));
+
+        $canenrolanyone = has_capability('local/restrictedenrol:enrolanyone', $context, $USER->id);
+
+        $ismanager = false;
+        foreach (get_user_roles($context, $USER->id, true) as $role) {
+            if ($role->shortname === $roleshortname) {
+                $ismanager = true;
+                break;
+            }
+        }
+
+        $restricted = false;
+
+        if ($ismanager && !$canenrolanyone && $cohortidnumber !== '') {
+            $restricted = $DB->record_exists_sql(
+                "SELECT 1
+               FROM {cohort_members} cm
+               JOIN {cohort} c
+                 ON c.id = cm.cohortid
+              WHERE cm.userid = :userid
+                AND c.idnumber = :cohortidnumber",
+                [
+                    'userid' => $USER->id,
+                    'cohortidnumber' => $cohortidnumber,
+                ]
+            );
+        }
 
         $limitfrom = max(0, $params['page']) * max(1, $params['perpage']);
         $limitnum = max(1, $params['perpage']);
@@ -75,8 +99,8 @@ class get_potential_users extends external_api {
         $namefields = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
 
         $sql = "SELECT u.*, {$namefields}
-                  FROM {user} u
-        ";
+              FROM {user} u
+    ";
 
         $where = [
             'u.deleted = 0',
@@ -85,35 +109,31 @@ class get_potential_users extends external_api {
             'u.id <> :guestid',
             'u.id <> :currentuserid',
             "NOT EXISTS (
-                SELECT 1
-                  FROM {user_enrolments} ue
-                  JOIN {enrol} e
-                    ON e.id = ue.enrolid
-                 WHERE ue.userid = u.id
-                   AND e.courseid = :courseid
-            )",
+            SELECT 1
+              FROM {user_enrolments} ue
+              JOIN {enrol} e
+                ON e.id = ue.enrolid
+             WHERE ue.userid = u.id
+               AND e.courseid = :courseid
+        )",
         ];
+
         $sqlparams = [
             'courseid' => $params['courseid'],
             'guestid' => $CFG->siteguest,
             'currentuserid' => $USER->id,
         ];
 
-        if ($restricted && $profilefieldshortname !== '') {
-            if ($managerprofilevalue === null || $managerprofilevalue === '') {
-                $where[] = '1 = 0';
-            } else {
-                $sql .= "
-                    JOIN {user_info_field} uif
-                      ON uif.shortname = :profilefieldshortname
-                    JOIN {user_info_data} uid
-                      ON uid.userid = u.id
-                     AND uid.fieldid = uif.id
-                ";
-                $sqlparams['profilefieldshortname'] = $profilefieldshortname;
-                $sqlparams['managerprofilevalue'] = $managerprofilevalue;
-                $where[] = 'uid.data = :managerprofilevalue';
-            }
+        if ($restricted) {
+            $sql .= "
+            JOIN {cohort_members} cm
+              ON cm.userid = u.id
+            JOIN {cohort} c
+              ON c.id = cm.cohortid
+        ";
+
+            $where[] = 'c.idnumber = :cohortidnumber';
+            $sqlparams['cohortidnumber'] = $cohortidnumber;
         }
 
         if ($params['search'] !== '') {
@@ -138,7 +158,15 @@ class get_potential_users extends external_api {
         $users = $DB->get_records_sql($sql, $sqlparams, $limitfrom, $limitnum);
 
         $results = [];
-        $requiredfields = ['id', 'fullname', 'profileimageurl', 'profileimageurlsmall', 'email', 'username', 'idnumber'];
+        $requiredfields = [
+            'id',
+            'fullname',
+            'profileimageurl',
+            'profileimageurlsmall',
+            'email',
+            'username',
+            'idnumber',
+        ];
 
         foreach ($users as $user) {
             $details = user_get_user_details($user, $course, $requiredfields);
@@ -187,19 +215,49 @@ class get_potential_users extends external_api {
      * @return bool
      */
     protected static function user_is_restricted(context_course $context, int $userid): bool {
+        global $DB;
+
+        // Users with enrolanyone capability are never restricted.
+        if (has_capability('local/restrictedenrol:enrolanyone', $context, $userid)) {
+            return false;
+        }
+
         $roleshortname = trim((string)(get_config('local_restrictedenrol', 'managershortname') ?: 'manager'));
         if ($roleshortname === '') {
             return false;
         }
 
+        $hasmanagerrole = false;
         foreach (get_user_roles($context, $userid, true) as $role) {
             if ($role->shortname === $roleshortname) {
-                return true;
+                $hasmanagerrole = true;
+                break;
             }
         }
 
-        return false;
+        if (!$hasmanagerrole) {
+            return false;
+        }
+
+        $cohortidnumber = trim((string)(get_config('local_restrictedenrol', 'cohortidnumber') ?: 'staff'));
+        if ($cohortidnumber === '') {
+            return false;
+        }
+
+        return $DB->record_exists_sql(
+            "SELECT 1
+           FROM {cohort_members} cm
+           JOIN {cohort} c
+             ON c.id = cm.cohortid
+          WHERE cm.userid = :userid
+            AND c.idnumber = :cohortidnumber",
+            [
+                'userid' => $userid,
+                'cohortidnumber' => $cohortidnumber,
+            ]
+        );
     }
+
 
     /**
      * Get a custom user profile field value for a user.

@@ -14,10 +14,10 @@ if ($hassiteconfig) {
     ));
 
     $settings->add(new admin_setting_configtext(
-        'local_restrictedenrol/profilefieldshortname',
-        get_string('profilefieldshortname', 'local_restrictedenrol'),
-        get_string('profilefieldshortname_desc', 'local_restrictedenrol'),
-        'collegecode',
+        'local_restrictedenrol/cohortidnumber',
+        get_string('cohortidnumber', 'local_restrictedenrol'),
+        get_string('cohortidnumber_desc', 'local_restrictedenrol'),
+        '',
         PARAM_ALPHANUMEXT
     ));
 
