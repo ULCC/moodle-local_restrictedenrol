@@ -26,9 +26,9 @@
 $capabilities = array(
 
 
-    'local/local_restrictedenrol:enrolanyone' => array(
+    'local/restrictedenrol:enrolanyone' => array(
         'captype' => 'write',
-        'contextlevel' => CONTEXT_SYSTEM,
+        'contextlevel' => CONTEXT_COURSE,
         'archetypes' => array(
         ),
     ),

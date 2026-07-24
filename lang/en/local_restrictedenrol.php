@@ -1,7 +1,7 @@
 <?php
 
 $string['pluginname'] = 'Restricted enrol';
-$string['restrictedenrol:enrolanyone']     =   "Allow to enrol anyone.";
+$string['restrictedenrol:enrolanyone']     =   "Allow to enrol anyone";
 $string['settings'] = 'Restricted enrol settings';
 $string['managershortname'] = 'Restricted role shortname';
 $string['managershortname_desc'] = 'Users with this role shortname in the course context will get enrolment search results restricted to their own profile field value.';
